@@ -6,10 +6,10 @@
   </p>
 </div>
 
+ <img src="https://github.com/cskujawa/rasa-assistant/blob/main/rasa-assistant-2.png" name="chat">
 <details>
-  <summary>Examples</summary><details>
+  <summary>More Examples</summary>
   <img src="https://github.com/cskujawa/rasa-assistant/blob/main/rasa-assistant-1.png" name="login">
-  <img src="https://github.com/cskujawa/rasa-assistant/blob/main/rasa-assistant-2.png" name="chat">
   <img src="https://github.com/cskujawa/rasa-assistant/blob/main/rasa-assistant-3.png" name="home-assistant">
   <img src="https://github.com/cskujawa/rasa-assistant/blob/main/rasa-assistant-4.png" name="postgres-viewer">
 </details>
