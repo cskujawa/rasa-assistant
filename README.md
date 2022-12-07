@@ -6,7 +6,13 @@
   </p>
 </div>
 
-
+<details>
+  <summary>Examples</summary><details>
+  <img src="https://github.com/cskujawa/rasa-assistant/blob/main/rasa-assistant-1.png" name="login">
+  <img src="https://github.com/cskujawa/rasa-assistant/blob/main/rasa-assistant-2.png" name="chat">
+  <img src="https://github.com/cskujawa/rasa-assistant/blob/main/rasa-assistant-3.png" name="home-assistant">
+  <img src="https://github.com/cskujawa/rasa-assistant/blob/main/rasa-assistant-4.png" name="postgres-viewer">
+</details>
 
 <!-- TABLE OF CONTENTS -->
 <details>
