@@ -1,0 +1,196 @@
+version: "3.7"
+
+volumes:
+  db-data: {}
+  rasa-data: {}
+
+services:
+  app:
+    image: app
+    container_name: app
+    restart: unless-stopped
+    build:
+      args:
+        user: "${USER_NAME}"
+        uid: "${USER_ID}"
+      context: .
+      dockerfile: ./interface/laravel/Dockerfile
+    image: app
+    environment:
+      SERVICE_NAME: app
+    volumes:
+      - ./interface/laravel:/var/www
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - rasa-assistant
+  
+  app-setup:
+    image: app
+    container_name: app-setup
+    depends_on:
+      - app
+    restart: "no"
+    volumes:
+      - ./interface/laravel:/var/www
+    entrypoint: ["bash", "-c", 
+      "rm -rf vendor composer.lock &&
+      composer install && 
+      php artisan telescope:install &&
+      php artisan key:generate &&
+      npm i --save-dev laravel-mix@latest &&
+      npm clean-install &&
+      npm run build"]
+
+  db:
+    image: mysql:8.0
+    container_name: db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_USER: ${DB_USERNAME}
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+    command: --innodb_buffer_pool_size=5M --innodb_log_buffer_size=256K --max_connections=10 --key_buffer_size=8 --thread_cache_size=0 --host_cache_size=0 
+    command: --innodb_ft_cache_size=1600000 --innodb_ft_total_cache_size=32000000 --thread_stack=131072 --sort_buffer_size=32K --read_buffer_size=8200
+    command: --read_rnd_buffer_size=8200 --max_heap_table_size=16K --tmp_table_size=1K --bulk_insert_buffer_size=0 --join_buffer_size=128 
+    command: --net_buffer_length=1K --innodb_sort_buffer_size=64K --binlog_cache_size=4K --binlog_stmt_cache_size=4K --performance_schema=off
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rasa-assistant
+
+  nginx:
+    build:
+      context: .
+      dockerfile: ./system/nginx/Dockerfile
+    image: nginx
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - 80:80
+    volumes:
+      - ./interface/laravel:/var/www
+    networks:
+      - rasa-assistant
+    depends_on:
+      - app
+
+  rasa:
+    user: "${USER_ID}"
+    image: rasa/rasa:main-spacy-en
+    container_name: rasa
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+    ports:
+      - 5005:5005
+    volumes:
+      - ./system/rasa:/app
+    command:
+      - run
+      -  --debug
+      -  --enable-api
+      -  --cors
+      -  "*"
+    networks:
+      - rasa-assistant
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  rasa-action_server:
+    build:
+      args:
+        user: "${USER_NAME}"
+        uid: "${USER_ID}"
+      context: .
+      dockerfile: ./system/rasa/Dockerfile
+    image: rasa-action_server
+    container_name: rasa-action-server
+    environment:
+      HOMEASSISTANT_TOKEN: "${HOMEASSISTANT_TOKEN}"
+    working_dir: /app
+    command:
+      - start
+      - --debug
+      - --actions
+      - actions
+      - --cors
+      -  "*"
+    networks:
+      - rasa-assistant
+    ports:
+      - 5055:5055
+    volumes:
+      - ./system/rasa/actions:/app/actions
+    depends_on:
+      - rasa
+
+  postgres:
+    image: postgres
+    container_name: postgres
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - rasa-data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    networks:
+      - rasa-assistant
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgweb:
+    user: "${USER_ID}"
+    container_name: pgweb
+    restart: always
+    image: sosedoff/pgweb
+    ports: 
+      - 8081:8081
+    links: 
+      - postgres:postgres 
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - rasa-assistant
+
+  homeassistant:
+    user: "${USER_ID}"
+    container_name: homeassistant
+    image: ghcr.io/home-assistant/home-assistant:stable
+    volumes:
+      - ./system/home-assistant:/config
+    restart: unless-stopped
+    ports:
+      - 8123:8123
+    privileged: true
+    environment:
+      TZ: "America/New_York"
+    networks:
+      - rasa-assistant
+
+networks:
+  rasa-assistant:
+    name: rasa-assistant
+    driver: bridge
+    ipam:
+     config:
+       - subnet: 172.30.0.1/16
+         gateway: 172.30.0.1

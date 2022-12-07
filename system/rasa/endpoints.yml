@@ -1,0 +1,11 @@
+tracker_store:
+   type: sql
+   dialect: "postgresql"
+   url: postgres
+   port: 5432
+   username: ${POSTGRES_USER}
+   password: ${POSTGRES_PASSWORD}
+   db: postgres
+
+action_endpoint:
+   url: "http://rasa-action-server:5055/webhook"
